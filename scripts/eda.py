@@ -42,6 +42,7 @@ def plot_dengue_cases_over_time(df):
     plt.close()
 
 
+
 def plot_symptoms_pie_chart(df):
     models_dir = ensure_models_dir()
     
@@ -111,6 +112,7 @@ def plot_symptoms_pie_chart(df):
     plt.close()
 
 
+
 def plot_correlation_heatmap(df):
     models_dir = ensure_models_dir()
     plt.figure(figsize=(8, 6))
@@ -133,6 +135,7 @@ def plot_correlation_heatmap(df):
     plt.close()
 
 
+
 def plot_cases_by_month(df):
     models_dir = ensure_models_dir()
     plt.figure(figsize=(10, 6))
@@ -147,6 +150,8 @@ def plot_cases_by_month(df):
     print(f"Plot saved to {plot_path}")
     plt.show()
     plt.close()
+
+
 
 def add_lag_features(df, lags=[1, 2]):
     models_dir = ensure_models_dir()
@@ -182,9 +187,16 @@ def add_lag_features(df, lags=[1, 2]):
     plt.xticks(rotation=45, ha='right')
     plt.title("Correlation matrix (Relevant Features)", pad=20)
     plt.tight_layout()
+
+    plot_path = models_dir / "lag_features_heatmap.png"
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    print(f"Plot saved to {plot_path}")
     plt.show()
-    
+    plt.close()
+
     return df_lagged
+
+
 
 if __name__ == "__main__":
     df = load_cleaned_data()
