@@ -148,6 +148,23 @@ def plot_cases_by_month(df, models_dir):
 
 
 
+def plot_seasonality_heatmap(df, models_dir):
+    df_pivot = df.groupby(['year', 'month'])['qntd_casos'].sum().unstack()
+    plt.figure(figsize=(12, 6))
+    sns.heatmap(df_pivot, annot=True, fmt='.0f', cmap='YlOrRd')
+    plt.title("Monthly Dengue Cases per Year")
+    plt.xlabel("Month")
+    plt.ylabel("Year")
+    plt.tight_layout()
+    
+    plot_path = models_dir / "seasonality_heatmap.png"
+    plt.savefig(plot_path, dpi=300)
+    print(f"Plot saved to {plot_path}")
+    plt.show()
+    plt.close()
+
+
+
 def add_lag_features(df, models_dir, lags=[1, 2]):
     df_lagged = df.copy()
     
@@ -200,4 +217,5 @@ if __name__ == "__main__":
         plot_symptoms_pie_chart(df, models_dir)
         plot_correlation_heatmap(df, models_dir)
         plot_cases_by_month(df, models_dir)
+        plot_seasonality_heatmap(df, models_dir)
         add_lag_features(df, models_dir, lags=[1, 2])
