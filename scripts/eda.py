@@ -2,6 +2,7 @@ import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 def ensure_models_dir():
     """Ensure that model diretory exists"""
@@ -10,6 +11,7 @@ def ensure_models_dir():
     models_dir.mkdir(exist_ok=True)
     return models_dir
 
+
 def load_cleaned_data():
     project_root = Path(__file__).parent.parent
     data_dir = project_root / "data"
@@ -17,13 +19,12 @@ def load_cleaned_data():
 
     try:
         df = pd.read_csv(file_path, sep=';', parse_dates=['dt_notificacao'])
-        print(" Data loaded successfully.")
+        print("Data loaded successfully.")
         return df
     except FileNotFoundError:
         print("File not found.")
         return None
-
-
+    
 
 def plot_dengue_cases_over_time(df, models_dir):
     plt.figure(figsize=(14, 5))
@@ -39,7 +40,6 @@ def plot_dengue_cases_over_time(df, models_dir):
     print(f"Plot saved to {plot_path}")
     plt.show()
     plt.close()
-
 
 
 def plot_symptoms_pie_chart(df, models_dir):
@@ -109,7 +109,6 @@ def plot_symptoms_pie_chart(df, models_dir):
     plt.close()
 
 
-
 def plot_correlation_heatmap(df, models_dir):
     plt.figure(figsize=(8, 6))
     cols = [
@@ -131,7 +130,6 @@ def plot_correlation_heatmap(df, models_dir):
     plt.close()
 
 
-
 def plot_cases_by_month(df, models_dir):
     plt.figure(figsize=(10, 6))
     sns.boxplot(x='month', y='qntd_casos', data=df)
@@ -145,7 +143,6 @@ def plot_cases_by_month(df, models_dir):
     print(f"Plot saved to {plot_path}")
     plt.show()
     plt.close()
-
 
 
 def plot_seasonality_heatmap(df, models_dir):
@@ -164,16 +161,26 @@ def plot_seasonality_heatmap(df, models_dir):
     plt.close()
 
 
-
-def add_lag_features(df, models_dir, lags=[1, 2]):
+def add_lag_features(df, models_dir, lags=[3, 4]):
+    """
+    Creates lagged features for cases and climate variables using a groupby
+    approach to ensure correct time-series relationships per municipality.
+    """
+    print("\n--- Creating lagged features with groupby() ---")
     df_lagged = df.copy()
     
-    # Create lag features
+    # Create lag features correctly using groupby
     for lag in lags:
-        df_lagged[f'qntd_casos_lag{lag}'] = df_lagged['qntd_casos'].shift(lag)
-        df_lagged[f'precipitacao_lag{lag}'] = df_lagged['precipitacao_total_mensal'].shift(lag)
-        df_lagged[f'temp_media_lag{lag}'] = df_lagged['temp_media_mensal'].shift(lag)
-        df_lagged[f'vento_media_lag{lag}'] = df_lagged['vento_vlc_media_mensal'].shift(lag)
+        df_lagged[f'qntd_casos_lag{lag}'] = df_lagged.groupby('cd_municipio')['qntd_casos'].shift(lag)
+        df_lagged[f'precipitacao_lag{lag}'] = df_lagged.groupby('cd_municipio')['precipitacao_total_mensal'].shift(lag)
+        df_lagged[f'temp_media_lag{lag}'] = df_lagged.groupby('cd_municipio')['temp_media_mensal'].shift(lag)
+        df_lagged[f'vento_media_lag{lag}'] = df_lagged.groupby('cd_municipio')['vento_vlc_media_mensal'].shift(lag)
+    
+    # Print info to check for NaNs before plotting
+    print("\nDataFrame info after adding lagged features:")
+    df_lagged.info()
+    print("\nNumber of NaNs after adding lagged features:")
+    print(df_lagged.isnull().sum())
     
     # Plot of the correlation matrix
     cols_corr = [
@@ -183,9 +190,10 @@ def add_lag_features(df, models_dir, lags=[1, 2]):
         'vento_vlc_media_mensal'
     ] + [col for col in df_lagged.columns if 'lag' in col]
     
-    df_corr = df_lagged[cols_corr].copy()
+    df_corr = df_lagged[cols_corr].dropna().copy()
     
-    
+    print("\nPlotting correlation matrix. NaNs introduced by shift() are temporarily dropped for the plot.")
+
     plt.figure(figsize=(10, 8))
     sns.heatmap(
         df_corr.corr(numeric_only=True),
@@ -208,14 +216,14 @@ def add_lag_features(df, models_dir, lags=[1, 2]):
     return df_lagged
 
 
-
 if __name__ == "__main__":
     df = load_cleaned_data()
     if df is not None:
         models_dir = ensure_models_dir()
+        df.sort_values(by=['cd_municipio', 'dt_notificacao'], inplace=True)
         plot_dengue_cases_over_time(df, models_dir)
         plot_symptoms_pie_chart(df, models_dir)
         plot_correlation_heatmap(df, models_dir)
         plot_cases_by_month(df, models_dir)
         plot_seasonality_heatmap(df, models_dir)
-        add_lag_features(df, models_dir, lags=[1, 2])
+        df_with_lags = add_lag_features(df, models_dir, lags=[3, 4])
