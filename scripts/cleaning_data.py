@@ -1,102 +1,118 @@
 import pandas as pd
-import os
 from pathlib import Path
 
-def clean_data():
+
+def get_project_paths():
     project_root = Path(__file__).parent.parent
     data_dir = project_root / "data"
-
     data_dir.mkdir(exist_ok=True)
+    return data_dir / "monthly_dengue_cases.csv", data_dir / "cleaned_monthly_dengue_cases.csv"
 
-    input_file = data_dir / "monthly_dengue_cases.csv"
-    output_file = data_dir / "cleaned_monthly_dengue_cases.csv"
 
+def read_csv_file(file_path):
     try:
-        df = pd.read_csv(input_file, sep=';')
-        print(f"File uploaded successfully at {input_file}")
+        df = pd.read_csv(file_path, sep=';')
+        print(f"File uploaded successfully at {file_path}")
+        return df
     except FileNotFoundError:
-        print("Error: The file 'monthly_dengue_cases.csv' was not found. Please make sure it is in the same directory as your script or provide the full path.")
+        print("Error: The file 'monthly_dengue_cases.csv' was not found.")
         exit()
 
-    # before cleaning
+
+def show_initial_info(df):
     print("\n--- Initial Information of the DataFrame ---")
     df.info()
-
     print("\n--- First 5 rows of the DataFrame ---")
     print(df.head())
-
     print("\n--- Checking for missing values before cleaning ---")
     print(df.isnull().sum())
 
 
-    # cleaning
-    df_cleaned = df.copy()
-    columns_to_check = ['precipitacao_total_mensal', 'temp_media_mensal', 'vento_vlc_media_mensal']
+def handle_null_strings(df, columns):
+    for col in columns:
+        if col in df.columns:
+            df[col] = df[col].replace('NULL', pd.NA)
+    return df
 
-    # 1. Handling 'NULL' values as strings and converting to NaN.
-    for col in columns_to_check:
-        if col in df_cleaned.columns:
-            df_cleaned[col] = df_cleaned[col].replace('NULL', pd.NA) 
 
-    # 2. Conversion of the date column to datetime
-    df_cleaned['dt_notificacao'] = pd.to_datetime(df_cleaned['dt_notificacao'], format='%d/%m/%Y', errors='coerce')
-    
-    # 3. Cleaning and converting numeric columns
-    for col in columns_to_check:
-        if col in df_cleaned.columns:
-            # Remove thousand separators and replace commas with decimal points.
-            df_cleaned[col] = df_cleaned[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-            # Try to convert to numeric. Values that cannot be converted will become NaN.
-            df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce')
+def convert_columns(df, columns):
+    df['dt_notificacao'] = pd.to_datetime(df['dt_notificacao'], format='%d/%m/%Y', errors='coerce')
+    for col in columns:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    return df
 
-    # 4. Imputation of missing values for numerical climate columns
+
+def fill_missing_values(df, columns):
     print("\n--- Filling NaNs in the numeric columns using interpolation ---")
-    for col in columns_to_check:
-        if col in df_cleaned.columns:
-            df_cleaned[col] = df_cleaned[col].interpolate(method='linear')
-            df_cleaned[col] = df_cleaned[col].fillna(method='ffill')
-            df_cleaned[col] = df_cleaned[col].fillna(method='bfill')
+    for col in columns:
+        if col in df.columns:
+            df[col] = df[col].interpolate(method='linear')
+            df[col] = df[col].fillna(method='ffill').fillna(method='bfill')
+    return df
 
-    # 5. Verification and removal of duplicates
+
+def remove_duplicates(df):
     print("\n--- Checking and removing duplicate lines (if any) ---")
-    initial_rows_cleaned = df_cleaned.shape[0]
-    df_cleaned.drop_duplicates(inplace=True)
-    rows_after_duplicates_cleaned = df_cleaned.shape[0]
-    if initial_rows_cleaned > rows_after_duplicates_cleaned:
-        print(f"{initial_rows_cleaned - rows_after_duplicates_cleaned} been removed.")
-    else:
-        print("No duplicate line found.")
+    initial_rows = df.shape[0]
+    df.drop_duplicates(inplace=True)
+    removed = initial_rows - df.shape[0]
+    print(f"{removed} duplicate rows removed." if removed else "No duplicate line found.")
+    return df
 
-    # 6. Feature Engineering (Criação de Novas Variáveis a partir da data)
+
+def create_date_features(df):
     print("\n--- Creating new climate features ---")
-    # Remover linhas com datas inválidas (NaT) antes de extrair componentes
-    df_cleaned = df_cleaned.dropna(subset=['dt_notificacao'])
-    if not df_cleaned.empty:
-        df_cleaned['year'] = df_cleaned['dt_notificacao'].dt.year
-        df_cleaned['month'] = df_cleaned['dt_notificacao'].dt.month
-        df_cleaned['day'] = df_cleaned['dt_notificacao'].dt.day
-        df_cleaned['day_of_week'] = df_cleaned['dt_notificacao'].dt.dayofweek
-        df_cleaned['week_of_year'] = df_cleaned['dt_notificacao'].dt.isocalendar().week.astype(int)
-        df_cleaned['day_of_year'] = df_cleaned['dt_notificacao'].dt.dayofyear
+    df = df.dropna(subset=['dt_notificacao'])
+    if not df.empty:
+        df['year'] = df['dt_notificacao'].dt.year
+        df['month'] = df['dt_notificacao'].dt.month
+        df['day'] = df['dt_notificacao'].dt.day
+        df['day_of_week'] = df['dt_notificacao'].dt.dayofweek
+        df['week_of_year'] = df['dt_notificacao'].dt.isocalendar().week.astype(int)
+        df['day_of_year'] = df['dt_notificacao'].dt.dayofyear
     else:
-        print("Attention: Empty DataFrame after removing invalid dates, could not create climate features.")
+        print("Attention: Empty DataFrame after removing invalid dates.")
+    return df
 
 
-    # after cleaning
-    print("\n--- Initial Information of the DataFrame after cleaning ---")
-    df_cleaned.info()
+def show_final_info(df):
+    print("\n--- Information after cleaning ---")
+    df.info()
+    print("\n--- Missing values after cleaning ---")
+    print(df.isnull().sum())
+    print("\n--- First 5 rows after cleaning ---")
+    print(df.head())
 
-    print("\n--- Checking for missing values after cleaning ---")
-    print(df_cleaned.isnull().sum())
 
-    print("\n--- First 5 rows of the DataFrame após cleaning ---")
-    print(df_cleaned.head())
-
+def save_dataframe(df, output_path):
     try:
-        df_cleaned.to_csv(output_file, index=False, sep=';', encoding='utf-8')
-        return df_cleaned
+        df.to_csv(output_path, index=False, sep=';', encoding='utf-8')
+        print(f"\nFile saved successfully at {output_path}")
+        return df
     except Exception as e:
         print(f"\nError saving file: {str(e)}")
         return None
 
-clean_data()
+
+def clean_data():
+    input_file, output_file = get_project_paths()
+    df = read_csv_file(input_file)
+
+    show_initial_info(df)
+
+    columns_to_clean = ['precipitacao_total_mensal', 'temp_media_mensal', 'vento_vlc_media_mensal']
+    df = handle_null_strings(df, columns_to_clean)
+    df = convert_columns(df, columns_to_clean)
+    df = fill_missing_values(df, columns_to_clean)
+    df = remove_duplicates(df)
+    df = create_date_features(df)
+
+    show_final_info(df)
+
+    return save_dataframe(df, output_file)
+
+
+if __name__ == "__main__":
+    clean_data()
