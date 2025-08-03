@@ -25,8 +25,7 @@ def load_cleaned_data():
 
 
 
-def plot_dengue_cases_over_time(df):
-    models_dir = ensure_models_dir()
+def plot_dengue_cases_over_time(df, models_dir):
     plt.figure(figsize=(14, 5))
     df_monthly = df.groupby('dt_notificacao')['qntd_casos'].sum().reset_index()
     sns.lineplot(data=df_monthly, x='dt_notificacao', y='qntd_casos')
@@ -43,9 +42,7 @@ def plot_dengue_cases_over_time(df):
 
 
 
-def plot_symptoms_pie_chart(df):
-    models_dir = ensure_models_dir()
-    
+def plot_symptoms_pie_chart(df, models_dir):
     # Calculate total cases
     total_cases = df['qntd_casos'].sum()
     if total_cases == 0:
@@ -113,8 +110,7 @@ def plot_symptoms_pie_chart(df):
 
 
 
-def plot_correlation_heatmap(df):
-    models_dir = ensure_models_dir()
+def plot_correlation_heatmap(df, models_dir):
     plt.figure(figsize=(8, 6))
     cols = [
         'qntd_casos',
@@ -136,8 +132,7 @@ def plot_correlation_heatmap(df):
 
 
 
-def plot_cases_by_month(df):
-    models_dir = ensure_models_dir()
+def plot_cases_by_month(df, models_dir):
     plt.figure(figsize=(10, 6))
     sns.boxplot(x='month', y='qntd_casos', data=df)
     plt.title('Distribution of Dengue Cases by Month')
@@ -153,8 +148,7 @@ def plot_cases_by_month(df):
 
 
 
-def add_lag_features(df, lags=[1, 2]):
-    models_dir = ensure_models_dir()
+def add_lag_features(df, models_dir, lags=[1, 2]):
     df_lagged = df.copy()
     
     # Create lag features
@@ -175,7 +169,7 @@ def add_lag_features(df, lags=[1, 2]):
     df_corr = df_lagged[cols_corr].copy()
     
     
-    plt.figure(figsize=(12, 10))
+    plt.figure(figsize=(10, 8))
     sns.heatmap(
         df_corr.corr(numeric_only=True),
         annot=True,
@@ -201,8 +195,9 @@ def add_lag_features(df, lags=[1, 2]):
 if __name__ == "__main__":
     df = load_cleaned_data()
     if df is not None:
-        plot_dengue_cases_over_time(df)
-        plot_symptoms_pie_chart(df)
-        plot_correlation_heatmap(df)
-        plot_cases_by_month(df)
-        add_lag_features(df, lags=[1, 2])
+        models_dir = ensure_models_dir()
+        plot_dengue_cases_over_time(df, models_dir)
+        plot_symptoms_pie_chart(df, models_dir)
+        plot_correlation_heatmap(df, models_dir)
+        plot_cases_by_month(df, models_dir)
+        add_lag_features(df, models_dir, lags=[1, 2])
