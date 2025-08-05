@@ -8,7 +8,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
 
-# --- Directories and Data Loading ---
 
 def ensure_models_dir():
     models_dir = Path(__file__).parent.parent / "models"
@@ -27,7 +26,6 @@ def load_cleaned_data():
         return None
 
 
-# --- Feature Engineering ---
 
 def add_lag_features(df, lags=[3, 4]):
     df = df.copy()
@@ -123,13 +121,12 @@ def get_param_dist(version='balanced'):
             'bootstrap': [True]
         }
     elif version == 'complete':
-        # Cria apenas combinações válidas
         return {
             'n_estimators': [100, 200, 300, 500],
             'max_depth': [10, 20, 30, None],
             'min_samples_split': [2, 5, 10, 15],
             'min_samples_leaf': [1, 2, 4, 6],
-            'bootstrap': [True],  # Só True aqui
+            'bootstrap': [True],
             'max_features': ['sqrt', 'log2', None],
             'max_samples': [0.7, 0.8, 0.9, None]
         }
