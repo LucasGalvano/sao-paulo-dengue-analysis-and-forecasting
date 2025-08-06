@@ -4,11 +4,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
+import xgboost as xgb
 
 
-
+# Utils
 def ensure_models_dir():
     models_dir = Path(__file__).parent.parent / "models"
     models_dir.mkdir(exist_ok=True)
@@ -26,29 +26,37 @@ def load_cleaned_data():
         return None
 
 
-
-def add_lag_features(df, lags=[3, 4]):
+# Feature Engineering
+def add_lag_features(df, lags=[1, 2, 3, 4, 6, 12]):
     df = df.copy()
     for lag in lags:
         df[f'qntd_casos_lag{lag}'] = df.groupby('cd_municipio')['qntd_casos'].shift(lag)
         df[f'precipitacao_lag{lag}'] = df.groupby('cd_municipio')['precipitacao_total_mensal'].shift(lag)
         df[f'temp_media_lag{lag}'] = df.groupby('cd_municipio')['temp_media_mensal'].shift(lag)
         df[f'vento_media_lag{lag}'] = df.groupby('cd_municipio')['vento_vlc_media_mensal'].shift(lag)
-    print("Lag features added.")
+
+    # Rolling means
+    df['qntd_casos_ma3'] = df.groupby('cd_municipio')['qntd_casos'].transform(lambda x: x.rolling(3).mean())
+    df['qntd_casos_ma6'] = df.groupby('cd_municipio')['qntd_casos'].transform(lambda x: x.rolling(6).mean())
+
+    print("Lag features and rolling means added.")
     return df
 
 
-def prepare_data(df, lags=[3, 4]):
+def add_cyclical_features(df):
+    df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
+    df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
+    print("Cyclical month encoding added.")
+    return df
+
+
+def prepare_data(df):
     df.sort_values(by=['cd_municipio', 'dt_notificacao'], inplace=True)
-    df = add_lag_features(df, lags)
+    df = add_lag_features(df)
+    df = add_cyclical_features(df)
     df.dropna(inplace=True)
 
-    features = [
-        'precipitacao_total_mensal', 'temp_media_mensal', 'vento_vlc_media_mensal',
-        'qntd_casos_lag3', 'precipitacao_lag3', 'temp_media_lag3', 'vento_media_lag3',
-        'qntd_casos_lag4', 'precipitacao_lag4', 'temp_media_lag4', 'vento_media_lag4',
-        'year', 'month'
-    ]
+    features = [col for col in df.columns if col not in ['qntd_casos', 'dt_notificacao', 'cd_municipio']]
     target = 'qntd_casos'
 
     X = df[features]
@@ -63,9 +71,10 @@ def prepare_data(df, lags=[3, 4]):
     return X_train, X_test, y_train, y_test, dates_test
 
 
+# Evaluation & Plotting
 def evaluate_and_plot(model, X_test, y_test, dates, title, save_path):
     y_pred = model.predict(X_test)
-    y_pred = np.maximum(y_pred, 0)  # Clamp negative predictions to zero
+    y_pred = np.maximum(y_pred, 0)
 
     mse = mean_squared_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
@@ -85,62 +94,35 @@ def evaluate_and_plot(model, X_test, y_test, dates, title, save_path):
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    print(f"Plot saved at {save_path}")
     plt.show()
 
 
-def train_baseline_model():
+# Baseline XGBoost
+def train_xgboost_baseline():
     models_dir = ensure_models_dir()
     df = load_cleaned_data()
     if df is None:
         return
-
     X_train, X_test, y_train, y_test, dates_test = prepare_data(df)
 
-    print(f"\nTraining RandomForestRegressor with {len(X_train)} samples...")
-    model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
+    print(f"\nTraining XGBoost Regressor with {len(X_train)} samples...")
+    model = xgb.XGBRegressor(
+        objective='reg:squarederror',
+        n_estimators=1000,
+        learning_rate=0.01,
+        random_state=42,
+        n_jobs=-1
+    )
     model.fit(X_train, y_train)
 
     evaluate_and_plot(
-        model,
-        X_test,
-        y_test,
-        dates_test,
-        title='Dengue Cases Forecast - Standard Test',
-        save_path=models_dir / "baseline_dengue_forecast.png"
-    )
+        model, X_test, y_test, dates_test,
+        title='Dengue Cases Forecast - XGBoost Baseline (Improved)',
+        save_path=models_dir / "baseline_dengue_forecast_xgb_improved.png")
 
 
-def get_param_dist(version='balanced'):
-    if version == 'fast':
-        return {
-            'n_estimators': [50, 100],
-            'max_depth': [5, 10],
-            'min_samples_split': [2, 5],
-            'min_samples_leaf': [1, 2],
-            'bootstrap': [True]
-        }
-    elif version == 'complete':
-        return {
-            'n_estimators': [100, 200, 300, 500],
-            'max_depth': [10, 20, 30, None],
-            'min_samples_split': [2, 5, 10, 15],
-            'min_samples_leaf': [1, 2, 4, 6],
-            'bootstrap': [True],
-            'max_features': ['sqrt', 'log2', None],
-            'max_samples': [0.7, 0.8, 0.9, None]
-        }
-    else:  # balanced
-        return {
-            'n_estimators': [100, 200, 300],
-            'max_depth': [10, 20, None],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4],
-            'bootstrap': [True, False],
-            'max_features': ['sqrt', 'log2']
-        }
-
-def optimize_hyperparameters(version='complete'): #change the string after version to 'fast', 'balanced' or 'complete' to different results
+# Hyperparameter Search
+def optimize_xgboost_hyperparameters():
     models_dir = ensure_models_dir()
     df = load_cleaned_data()
     if df is None:
@@ -148,18 +130,32 @@ def optimize_hyperparameters(version='complete'): #change the string after versi
 
     X_train, X_test, y_train, y_test, dates_test = prepare_data(df)
 
-    param_dist = get_param_dist(version)
+    param_dist = {
+        'n_estimators': [500, 1000, 2000],
+        'learning_rate': [0.005, 0.01, 0.02],
+        'max_depth': [3, 5, 7, 9],
+        'subsample': [0.6, 0.8, 1.0],
+        'colsample_bytree': [0.6, 0.8, 1.0],
+        'gamma': [0, 0.1, 0.2, 0.5],
+        'reg_alpha': [0, 0.01, 0.1],
+        'reg_lambda': [1, 1.5, 2],
+        'min_child_weight': [1, 3, 5]
+    }
 
-    print(f"\nStarting hyperparameter search with RandomizedSearchCV ({version.capitalize()} Version)...")
-    tscv = TimeSeriesSplit(n_splits=5)
-    rf = RandomForestRegressor(random_state=42, n_jobs=-1)
+    print("\nStarting hyperparameter search with RandomizedSearchCV...")
+    tscv = TimeSeriesSplit(n_splits=8)
+
+    xgb_reg = xgb.XGBRegressor(
+        objective='reg:squarederror',
+        random_state=42,
+        n_jobs=-1
+    )
 
     random_search = RandomizedSearchCV(
-        estimator=rf,
+        estimator=xgb_reg,
         param_distributions=param_dist,
-        n_iter=10 if version == 'fast' else 30,
+        n_iter=50,
         cv=tscv,
-        verbose=1,
         random_state=42,
         n_jobs=-1,
         scoring='r2'
@@ -176,13 +172,12 @@ def optimize_hyperparameters(version='complete'): #change the string after versi
         X_test,
         y_test,
         dates_test,
-        title=f'Dengue Forecast - Optimized ({version.capitalize()})',
-        save_path=models_dir / f"optimized_dengue_forecast_{version}.png"
+        title='Dengue Forecast - Optimized XGBoost (Improved)',
+        save_path=models_dir / "optimized_dengue_forecast_xgb_improved.png"
     )
 
 
-
+# Main
 if __name__ == "__main__":
-    train_baseline_model()
-    #change the string after version to 'fast', 'balanced' or 'complete' to different results (on the function as well)
-    optimize_hyperparameters(version='complete')
+    train_xgboost_baseline()
+    optimize_xgboost_hyperparameters()
