@@ -8,15 +8,20 @@ from sklearn.metrics import mean_squared_error, r2_score
 import xgboost as xgb
 
 
-# Utils
-def ensure_models_dir():
-    models_dir = Path(__file__).parent.parent / "models"
+# ------------------- UTILITIES -------------------
+
+def ensure_dirs():
+    base_path = Path(__file__).parent.parent
+    models_dir = base_path / "models"
+    data_dir = base_path / "data"
     models_dir.mkdir(exist_ok=True)
-    return models_dir
+    data_dir.mkdir(exist_ok=True)
+    return models_dir, data_dir
 
 
 def load_cleaned_data():
-    file_path = Path(__file__).parent.parent / "data" / "cleaned_monthly_dengue_cases.csv"
+    _, data_dir = ensure_dirs()
+    file_path = data_dir / "cleaned_monthly_dengue_cases.csv"
     try:
         df = pd.read_csv(file_path, sep=';', parse_dates=['dt_notificacao'])
         print("Data loaded successfully.")
@@ -26,24 +31,26 @@ def load_cleaned_data():
         return None
 
 
-# Feature Engineering
+# ------------------- FEATURE ENGINEERING -------------------
+
 def add_lag_features(df, lags=[1, 2, 3, 4, 6, 12]):
-    df = df.copy()
     for lag in lags:
         df[f'qntd_casos_lag{lag}'] = df.groupby('cd_municipio')['qntd_casos'].shift(lag)
         df[f'precipitacao_lag{lag}'] = df.groupby('cd_municipio')['precipitacao_total_mensal'].shift(lag)
         df[f'temp_media_lag{lag}'] = df.groupby('cd_municipio')['temp_media_mensal'].shift(lag)
         df[f'vento_media_lag{lag}'] = df.groupby('cd_municipio')['vento_vlc_media_mensal'].shift(lag)
-
-    # Rolling means
-    df['qntd_casos_ma3'] = df.groupby('cd_municipio')['qntd_casos'].transform(lambda x: x.rolling(3).mean())
-    df['qntd_casos_ma6'] = df.groupby('cd_municipio')['qntd_casos'].transform(lambda x: x.rolling(6).mean())
-
-    print("Lag features and rolling means added.")
+    print("Lag features added.")
     return df
 
 
-def add_cyclical_features(df):
+def add_rolling_means(df, windows=[3, 6]):
+    for w in windows:
+        df[f'qntd_casos_rm{w}'] = df.groupby('cd_municipio')['qntd_casos'].shift(1).rolling(w).mean()
+    print("Rolling mean features added.")
+    return df
+
+
+def add_cyclical_month_encoding(df):
     df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
     df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
     print("Cyclical month encoding added.")
@@ -52,8 +59,10 @@ def add_cyclical_features(df):
 
 def prepare_data(df):
     df.sort_values(by=['cd_municipio', 'dt_notificacao'], inplace=True)
+    
     df = add_lag_features(df)
-    df = add_cyclical_features(df)
+    df = add_rolling_means(df)
+    df = add_cyclical_month_encoding(df)
     df.dropna(inplace=True)
 
     features = [col for col in df.columns if col not in ['qntd_casos', 'dt_notificacao', 'cd_municipio']]
@@ -64,15 +73,16 @@ def prepare_data(df):
 
     test_size = 0.2
     split_index = int(len(X) * (1 - test_size))
-    X_train, X_test = X[:split_index], X[split_index:]
-    y_train, y_test = y[:split_index], y[split_index:]
-    dates_test = df['dt_notificacao'][split_index:]
+    X_train, X_test = X.iloc[:split_index], X.iloc[split_index:]
+    y_train, y_test = y.iloc[:split_index], y.iloc[split_index:]
+    dates_test = df['dt_notificacao'].iloc[split_index:]
 
     return X_train, X_test, y_train, y_test, dates_test
 
 
-# Evaluation & Plotting
-def evaluate_and_plot(model, X_test, y_test, dates, title, save_path):
+# ------------------- EVALUATION -------------------
+
+def evaluate_and_plot(model, X_test, y_test, dates, title, save_path, csv_path):
     y_pred = model.predict(X_test)
     y_pred = np.maximum(y_pred, 0)
 
@@ -94,12 +104,22 @@ def evaluate_and_plot(model, X_test, y_test, dates, title, save_path):
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.show()
+    print(f"Plot saved at {save_path}")
+    plt.close()
+
+    # Save predictions as CSV
+    pd.DataFrame({
+        'date': dates,
+        'actual': y_test.values,
+        'predicted': y_pred
+    }).to_csv(csv_path, index=False, sep=';')
+    print(f"Predictions saved at {csv_path}")
 
 
-# Baseline XGBoost
+# ------------------- TRAINING -------------------
+
 def train_xgboost_baseline():
-    models_dir = ensure_models_dir()
+    models_dir, data_dir = ensure_dirs()
     df = load_cleaned_data()
     if df is None:
         return
@@ -118,12 +138,13 @@ def train_xgboost_baseline():
     evaluate_and_plot(
         model, X_test, y_test, dates_test,
         title='Dengue Cases Forecast - XGBoost Baseline (Improved)',
-        save_path=models_dir / "baseline_dengue_forecast_xgb_improved.png")
+        save_path=models_dir / "baseline_dengue_forecast_xgb_improved.png",
+        csv_path=data_dir / "xgb_predictions_baseline.csv"
+    )
 
 
-# Hyperparameter Search
 def optimize_xgboost_hyperparameters():
-    models_dir = ensure_models_dir()
+    models_dir, data_dir = ensure_dirs()
     df = load_cleaned_data()
     if df is None:
         return
@@ -173,11 +194,12 @@ def optimize_xgboost_hyperparameters():
         y_test,
         dates_test,
         title='Dengue Forecast - Optimized XGBoost (Improved)',
-        save_path=models_dir / "optimized_dengue_forecast_xgb_improved.png"
+        save_path=models_dir / "optimized_dengue_forecast_xgb_improved.png",
+        csv_path=data_dir / "xgb_predictions_optimized.csv"
     )
 
 
-# Main
+# ------------------- MAIN -------------------
 if __name__ == "__main__":
     train_xgboost_baseline()
     optimize_xgboost_hyperparameters()
