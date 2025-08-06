@@ -8,15 +8,20 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
 
+# ------------------- UTILITIES -------------------
 
-def ensure_models_dir():
-    models_dir = Path(__file__).parent.parent / "models"
+def ensure_dirs():
+    base_path = Path(__file__).parent.parent
+    models_dir = base_path / "models"
+    data_dir = base_path / "data"
     models_dir.mkdir(exist_ok=True)
-    return models_dir
+    data_dir.mkdir(exist_ok=True)
+    return models_dir, data_dir
 
 
 def load_cleaned_data():
-    file_path = Path(__file__).parent.parent / "data" / "cleaned_monthly_dengue_cases.csv"
+    _, data_dir = ensure_dirs()
+    file_path = data_dir / "cleaned_monthly_dengue_cases.csv"
     try:
         df = pd.read_csv(file_path, sep=';', parse_dates=['dt_notificacao'])
         print("Data loaded successfully.")
@@ -26,9 +31,9 @@ def load_cleaned_data():
         return None
 
 
+# ------------------- FEATURE ENGINEERING -------------------
 
-def add_lag_features(df, lags=[3, 4]):
-    df = df.copy()
+def add_lag_features(df, lags=[1, 2, 3, 4, 6, 12]):
     for lag in lags:
         df[f'qntd_casos_lag{lag}'] = df.groupby('cd_municipio')['qntd_casos'].shift(lag)
         df[f'precipitacao_lag{lag}'] = df.groupby('cd_municipio')['precipitacao_total_mensal'].shift(lag)
@@ -38,17 +43,32 @@ def add_lag_features(df, lags=[3, 4]):
     return df
 
 
-def prepare_data(df, lags=[3, 4]):
+def add_rolling_means(df, windows=[3, 6]):
+    for w in windows:
+        df[f'qntd_casos_rm{w}'] = df.groupby('cd_municipio')['qntd_casos'].shift(1).rolling(w).mean()
+        df[f'precipitacao_rm{w}'] = df.groupby('cd_municipio')['precipitacao_total_mensal'].shift(1).rolling(w).mean()
+        df[f'temp_media_rm{w}'] = df.groupby('cd_municipio')['temp_media_mensal'].shift(1).rolling(w).mean()
+        df[f'vento_media_rm{w}'] = df.groupby('cd_municipio')['vento_vlc_media_mensal'].shift(1).rolling(w).mean()
+    print("Rolling mean features added.")
+    return df
+
+
+def add_cyclical_month_encoding(df):
+    df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
+    df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
+    print("Cyclical month encoding added.")
+    return df
+
+
+def prepare_data(df):
     df.sort_values(by=['cd_municipio', 'dt_notificacao'], inplace=True)
-    df = add_lag_features(df, lags)
+
+    df = add_lag_features(df)
+    df = add_rolling_means(df)
+    df = add_cyclical_month_encoding(df)
     df.dropna(inplace=True)
 
-    features = [
-        'precipitacao_total_mensal', 'temp_media_mensal', 'vento_vlc_media_mensal',
-        'qntd_casos_lag3', 'precipitacao_lag3', 'temp_media_lag3', 'vento_media_lag3',
-        'qntd_casos_lag4', 'precipitacao_lag4', 'temp_media_lag4', 'vento_media_lag4',
-        'year', 'month'
-    ]
+    features = [col for col in df.columns if col not in ['qntd_casos', 'dt_notificacao']]
     target = 'qntd_casos'
 
     X = df[features]
@@ -56,16 +76,18 @@ def prepare_data(df, lags=[3, 4]):
 
     test_size = 0.2
     split_index = int(len(X) * (1 - test_size))
-    X_train, X_test = X[:split_index], X[split_index:]
-    y_train, y_test = y[:split_index], y[split_index:]
-    dates_test = df['dt_notificacao'][split_index:]
+    X_train, X_test = X.iloc[:split_index], X.iloc[split_index:]
+    y_train, y_test = y.iloc[:split_index], y.iloc[split_index:]
+    dates_test = df['dt_notificacao'].iloc[split_index:]
 
     return X_train, X_test, y_train, y_test, dates_test
 
 
-def evaluate_and_plot(model, X_test, y_test, dates, title, save_path):
+# ------------------- EVALUATION -------------------
+
+def evaluate_and_plot(model, X_test, y_test, dates, title, save_path, csv_path):
     y_pred = model.predict(X_test)
-    y_pred = np.maximum(y_pred, 0)  # Clamp negative predictions to zero
+    y_pred = np.maximum(y_pred, 0)
 
     mse = mean_squared_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
@@ -86,11 +108,21 @@ def evaluate_and_plot(model, X_test, y_test, dates, title, save_path):
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f"Plot saved at {save_path}")
-    plt.show()
+    plt.close()
 
+    # Save predictions as CSV
+    pd.DataFrame({
+        'date': dates,
+        'actual': y_test.values,
+        'predicted': y_pred
+    }).to_csv(csv_path, index=False, sep=';')
+    print(f"Predictions saved at {csv_path}")
+
+
+# ------------------- TRAINING -------------------
 
 def train_baseline_model():
-    models_dir = ensure_models_dir()
+    models_dir, data_dir = ensure_dirs()
     df = load_cleaned_data()
     if df is None:
         return
@@ -106,8 +138,9 @@ def train_baseline_model():
         X_test,
         y_test,
         dates_test,
-        title='Dengue Cases Forecast - Standard Test',
-        save_path=models_dir / "baseline_dengue_forecast.png"
+        title='Dengue Cases Forecast - RF Baseline',
+        save_path=models_dir / "baseline_dengue_forecast_rf.png",
+        csv_path=data_dir / "rf_predictions_baseline.csv"
     )
 
 
@@ -140,8 +173,9 @@ def get_param_dist(version='balanced'):
             'max_features': ['sqrt', 'log2']
         }
 
-def optimize_hyperparameters(version='complete'): #change the string after version to 'fast', 'balanced' or 'complete' to different results
-    models_dir = ensure_models_dir()
+
+def optimize_hyperparameters(version='complete'):
+    models_dir, data_dir = ensure_dirs()
     df = load_cleaned_data()
     if df is None:
         return
@@ -159,7 +193,6 @@ def optimize_hyperparameters(version='complete'): #change the string after versi
         param_distributions=param_dist,
         n_iter=10 if version == 'fast' else 30,
         cv=tscv,
-        verbose=1,
         random_state=42,
         n_jobs=-1,
         scoring='r2'
@@ -176,12 +209,13 @@ def optimize_hyperparameters(version='complete'): #change the string after versi
         X_test,
         y_test,
         dates_test,
-        title=f'Dengue Forecast - Optimized ({version.capitalize()})',
-        save_path=models_dir / f"optimized_dengue_forecast_{version}.png"
+        title=f'Dengue Forecast - RF Optimized ({version.capitalize()})',
+        save_path=models_dir / f"optimized_dengue_forecast_rf_{version}.png",
+        csv_path=data_dir / "rf_predictions_optimized.csv"
     )
 
 
+# ------------------- MAIN -------------------
 if __name__ == "__main__":
     train_baseline_model()
-    #change the string after version to 'fast', 'balanced' or 'complete' to different results (on the function as well)
     optimize_hyperparameters(version='complete')
