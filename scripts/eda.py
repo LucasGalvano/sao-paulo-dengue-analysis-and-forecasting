@@ -42,67 +42,54 @@ def plot_dengue_cases_over_time(df, models_dir):
     plt.close()
 
 
-def plot_symptoms_pie_chart(df, models_dir):
-    # Calculate total cases
+def plot_symptoms_barchart(df, models_dir):
+    """
+    Plots a bar chart showing the prevalence of each symptom as a percentage of total cases.
+    This is more appropriate than a pie chart because symptoms are not mutually exclusive.
+    """
+    symptom_cols = {
+        'qntd_febre': 'Fever',
+        'qntd_vomito': 'Vomit',
+        'qntd_nausea': 'Nausea',
+        'qntd_sangramento': 'Bleeding'
+    }
+    
     total_cases = df['qntd_casos'].sum()
     if total_cases == 0:
-        print("No cases found to plot.")
+        print("No dengue cases to analyze symptoms for.")
         return
-    
-    # Calculate cases with each symptom
-    fever_cases = df['qntd_febre'].sum()
-    vomiting_cases = df['qntd_vomito'].sum()
-    nausea_cases = df['qntd_nausea'].sum()
-    bleeding_cases = df['qntd_sangramento'].sum()
-    
-    # Calculate percentages
-    fever_percent = (fever_cases / total_cases) * 100
-    vomiting_percent = (vomiting_cases / total_cases) * 100
-    nausea_percent = (nausea_cases / total_cases) * 100
-    bleeding_percent = (bleeding_cases / total_cases) * 100
-    
-    # Calculate "Other Symptoms" (avoid negative values)
-    other_percent = max(0, 100 - (fever_percent + vomiting_percent + nausea_percent + bleeding_percent))
-    
-    # Filter out near-zero percentages (< 0.1%) to avoid tiny slices
-    labels = []
-    sizes = []
-    colors = []
-    color_palette = ['#ff9999', '#66b3ff', '#99ff99', '#faa41a', '#a62a7e']
-    
-    if fever_percent >= 0.1:
-        labels.append('Fever')
-        sizes.append(fever_percent)
-        colors.append(color_palette[0])
-    if vomiting_percent >= 0.1:
-        labels.append('Vomit')
-        sizes.append(vomiting_percent)
-        colors.append(color_palette[1])
-    if nausea_percent >= 0.1:
-        labels.append('Nausea')
-        sizes.append(nausea_percent)
-        colors.append(color_palette[2])
-    if bleeding_percent >= 0.1:
-        labels.append('Bleeding')
-        sizes.append(bleeding_percent)
-        colors.append(color_palette[3])
-    if other_percent >= 0.1:
-        labels.append('Other Symptoms')
-        sizes.append(other_percent)
-        colors.append(color_palette[4])
-    
-    # If all are <0.1%, show at least the main symptoms
-    if not sizes:
-        print("All symptom percentages are very low (<0.1%). Adjusting thresholds...")
-        labels = ['Fever', 'Vomit', 'Nausea', 'Bleeding', 'Other Symptoms']
-        sizes = [fever_percent, vomiting_percent, nausea_percent, bleeding_percent, other_percent]
-        colors = color_palette
 
-    plt.figure(figsize=(8, 8))
-    plt.pie(sizes, labels=labels, colors=colors, autopct=lambda p: f'{p:.1f}%' if p >= 0.1 else '', startangle=90)
-    plt.title('Distribution of Symptoms in Dengue Cases')
+    symptom_counts = {name: df[col].sum() for col, name in symptom_cols.items()}
     
-    plot_path = models_dir / "symptoms_pie_chart.png"
+    # Calculate prevalence percentage for each symptom
+    symptom_prevalence = {name: (count / total_cases) * 100 for name, count in symptom_counts.items()}
+
+    # Create a DataFrame for plotting
+    symptoms_df = pd.DataFrame(list(symptom_prevalence.items()), columns=['Symptom', 'Prevalence (%)'])
+    symptoms_df = symptoms_df.sort_values('Prevalence (%)', ascending=False)
+
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(
+        x='Prevalence (%)',
+        y='Symptom',
+        data=symptoms_df,
+        palette='viridis',
+        orient='h'
+    )
+
+    plt.title('Symptom Prevalence in Dengue Cases', fontsize=16)
+    plt.xlabel('Prevalence (%)', fontsize=12)
+    plt.ylabel('Symptom', fontsize=12)
+    plt.xlim(0, max(symptoms_df['Prevalence (%)']) * 1.1)
+
+    # Add percentage labels to the bars
+    for index, value in enumerate(symptoms_df['Prevalence (%)']):
+        ax.text(value + 0.5, index, f'{value:.1f}%', color='black', ha="left", va="center")
+
+    plt.tight_layout()
+    
+    # Save the plot
+    plot_path = models_dir / "symptoms_barchart.png"
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {plot_path}")
     plt.show()
@@ -222,7 +209,7 @@ if __name__ == "__main__":
         models_dir = ensure_models_dir()
         df.sort_values(by=['cd_municipio', 'dt_notificacao'], inplace=True)
         plot_dengue_cases_over_time(df, models_dir)
-        plot_symptoms_pie_chart(df, models_dir)
+        plot_symptoms_barchart(df, models_dir)
         plot_correlation_heatmap(df, models_dir)
         plot_cases_by_month(df, models_dir)
         plot_seasonality_heatmap(df, models_dir)
