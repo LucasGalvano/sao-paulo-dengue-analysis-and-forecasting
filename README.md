@@ -4,85 +4,133 @@ This project focuses on building a complete, scientifically robust end-to-end da
 
 The project's foundation is the publicly available dataset sourced from the final thesis (TCC) of a group of students in São Paulo, Brazil. The analysis was refactored to prioritize data integrity and real-world predictive validity.
 
-> 📊 This project was developed as a personal initiative to put into practice the knowledge acquired in the **IBM Professional Data Scientist Certificate** program, with a focus on advanced time-series methodologies.
+📊 This project was developed as a personal initiative to apply the knowledge acquired in the IBM Professional Data Scientist Certificate program, with a focus on advanced time-series methodologies.
 
 ---
 
 ## 📁 Dataset & Original Project Context
 
-- **Source:** [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NN7EOY)
-- **Original Project News Coverage (TCC):** [Students from São Paulo create algorithm to predict dengue cases](https://www.metropoles.com/sao-paulo/estudantes-de-sp-criam-algoritmo-capaz-de-prever-casos-de-dengue)
+**Source:** Harvard Dataverse  
+**Original Project (TCC):** Students from São Paulo create algorithm to predict dengue cases
 
 The dataset contains time-series data on:
+
 - Monthly reported dengue cases (`qntd_casos`)
 - Climate variables (temperature, precipitation, wind speed)
 
 ---
 
 ## 📌 Project Structure
+
 ```
 aedes_analysis_project/
 │
-├── data/ # Raw and processed datasets
-├── notebooks/ # Jupyter Notebook ([main pipeline](./notebooks/aedes_analysis.ipynb))
-├── models/ # Saved plots and model outputs
-├── scripts/ # Scripts for cleaning and preprocessing
-├── README.md # Project overview
-└── requirements.txt # Python dependencies
+├── data/                 # Raw and processed datasets
+├── notebooks/            # Jupyter Notebooks
+│   └── aedes_analysis.ipynb   # Main pipeline
+├── models/               # Saved plots and model outputs
+├── scripts/              # Cleaning and preprocessing scripts
+├── README.md             # Project overview
+└── requirements.txt      # Python dependencies
 ```
 
 ---
+
+## 🚀 Quick Start: Setup and Execution
+
+Follow these steps to clone the repository, install dependencies, and run the analysis pipeline.
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/LucasGalvano/aedes_analysis_project.git
+cd aedes_analysis_project/
+```
+
+### 2. Install Dependencies
+
+Ensure Python 3.8+ is installed:
+
+> **Note:** During development, Python **3.12.0** was used without issues.
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run the Analysis
+
+The complete forecasting pipeline (data cleaning, feature engineering, training, and evaluation) is executed through the scripts located in the `scripts/` folder:
+
+- `cleaning_data.py`
+- `eda.py`
+- `train_dengue_model.py`
+
+To run the full workflow:
+
+```bash
+python scripts/cleaning_data.py
+python scripts/eda.py
+python scripts/train_dengue_model.py
+```
+
+Model outputs, plots, and diagnostics are generated inside the `models/` directory.
 
 ---
 
 ## 🔍 Methodology: Focus on Integrity
 
-My approach followed a robust time-series machine learning workflow, emphasizing scientific rigor:
+A rigorous time-series machine learning workflow was followed, emphasizing scientific soundness.
 
-### 1. Data Cleaning & **Leakage Prevention**
-- **CRITICAL:** Explicitly identified and removed **9 features** related to symptoms and test results (e.g., `qntd_febre`, `qntd_resultado_ns1`) to eliminate data leakage and ensure the model only uses truly predictive, historically available information.
-- **Robust Imputation:** Implemented time-aware imputation (seasonal median/FFILL/BFILL) to handle missing climate values without introducing future bias.
+### 1. Data Cleaning & Leakage Prevention
+
+- **Critical:** Removed 9 symptom-related and test-result features  
+  (e.g., `qntd_febre`, `qntd_resultado_ns1`) to eliminate data leakage and ensure the model uses only historically available predictive signals.
+- **Robust Imputation:** Time-aware imputation (seasonal medians, FFILL, BFILL) was applied to avoid injecting future information.
 
 ### 2. Exploratory Data Analysis (EDA)
-- Confirmed strong seasonal trends and the non-contemporaneous relationship between climate and case incidence.
+
+- Detected strong seasonal behavior in dengue incidence.
+- Confirmed that climate variables affect cases with biological time delays.
 
 ### 3. Feature Engineering
-- Created essential **Lag Features** (1 to 12 months) for cases, precipitation, temperature, and wind speed, capturing the biological delay of the *Aedes aegypti* mosquito cycle.
-- Engineered monthly and cyclical temporal features (sin/cos encoding).
+
+- Lag features (1–12 months) generated for cases, precipitation, temperature, wind speed.
+- Month and cyclical temporal encodings (sin/cos) created for seasonality capture.
 
 ### 4. Machine Learning & Temporal Validation
-- **Validation Strategy:** Used a strict **TimeSeriesSplit** validation, where the model is trained *only* on past data and evaluated *only* on future data, simulating a real-world forecast scenario.
-- **Model:** Employed an **Optimized Ensemble Regressor** (combining XGBoost, Random Forest, and GBM) to maximize prediction stability and accuracy.
+
+- **Validation:** Strict `TimeSeriesSplit` ensuring models are always trained on past data and evaluated on unseen future data.
+- **Model:** Optimized Ensemble Regressor (XGBoost + Random Forest + GBM) to maximize predictive stability and accuracy.
 
 ---
 
 ## 🛠️ Technologies Used
 
-This project leverages the following tools and libraries:
-
-- <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-- <img src="https://img.shields.io/badge/Jupyter_Notebook-F37626?style=for-the-badge&logo=jupyter&logoColor=white" alt="Jupyter Notebook">
-- <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas">
-- <img src="https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white" alt="NumPy">
-- <img src="https://img.shields.io/badge/scikit_learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white" alt="Scikit-learn">
-- <img src="https://img.shields.io/badge/XGBoost-1D96D2?style=for-the-badge&logo=xgboost&logoColor=white" alt="XGBoost">
-- <img src="https://img.shields.io/badge/LightGBM-005C98?style=for-the-badge&logo=lightgbm&logoColor=white" alt="LightGBM">
+<p>
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/Jupyter_Notebook-F37626?style=for-the-badge&logo=jupyter&logoColor=white">
+  <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white">
+  <img src="https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white">
+  <img src="https://img.shields.io/badge/scikit_learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white">
+  <img src="https://img.shields.io/badge/XGBoost-1D96D2?style=for-the-badge&logo=xgboost&logoColor=white">
+  <img src="https://img.shields.io/badge/LightGBM-005C98?style=for-the-badge&logo=lightgbm&logoColor=white">
+</p>
 
 ---
 
 ## 📈 Final Results (Optimized Ensemble Model)
 
-By eliminating data leakage and focusing on lagged, predictive features, the Ensemble Model achieved significantly improved and robust performance on the final test set (20% of the latest data).
+By removing leakage and relying exclusively on lagged predictive features, the Ensemble Model reached strong and reliable performance on the final test set (latest 20% of data).
 
-| Metric | Optimized Ensemble Regressor | Interpretation |
-|---|---|---|
-| **R² Score** | **0.753** | The model explains **75.3%** of the variance in dengue cases, a strong result for a time-series forecast. |
-| **RMSE** | 7.29 | Average magnitude of error in case counts. |
-| **MAE** | 4.20 | Average absolute error in case counts. |
-| **Outbreak F1-Score** | **0.808** | Confirms high accuracy in detecting critical outbreak periods. |
+| Metric               | Value  | Interpretation |
+|---------------------|--------|----------------|
+| **R² Score**        | 0.753  | 75.3% variance explained |
+| **RMSE**            | 7.29   | Avg. magnitude of error |
+| **MAE**             | 4.20   | Avg. absolute error |
+| **Outbreak F1-Score** | 0.808 | High accuracy in detecting outbreak periods |
 
-**Diagnostic Analysis:**
-The diagnostic plots confirm the model's validity, showing that residuals are randomly distributed (no systematic error) and predictions closely track the actual series.
+**Diagnostic Analysis:**  
+Residuals are randomly distributed and predictions follow the actual series closely, confirming model validity.
 
 <div align="center">
   <img src="./models/ensemble_diagnostic_analysis.jpg" alt="Optimized Ensemble Model Diagnostic Analysis" width="700">
@@ -90,17 +138,7 @@ The diagnostic plots confirm the model's validity, showing that residuals are ra
 
 ---
 
-## 💻 Requirements
-
-Install dependencies with:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
 ## 📬 Contact
-Author: Lucas Galvano de Paula
 
-Email: lucasgalvano.lgp@gmail.com
+**Author:** Lucas Galvano de Paula  
+**Email:** lucasgalvano.lgp@gmail.com
