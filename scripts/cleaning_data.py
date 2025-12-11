@@ -153,8 +153,8 @@ def create_predictive_features(df):
         df['extreme_rain'] = (df['precipitacao_total_mensal'] > 400).astype(int)
         df['drought'] = (df['precipitacao_total_mensal'] < 10).astype(int)
 
-    # HISTORICAL CASE LAGS (very important!)
-    case_lag_periods = [1, 2, 3, 6, 12, 24]  # including 24 months to capture cycles
+    # HISTORICAL CASE LAGS
+    case_lag_periods = [1, 2, 3, 6, 12]  # including 12 months to capture cycles
 
     for lag in case_lag_periods:
         lag_col = f'casos_lag_{lag}'

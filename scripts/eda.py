@@ -180,90 +180,7 @@ def plot_climatic_scatter(df: pd.DataFrame, models_dir: Path, x_col: str, y_col:
     print(f"Plot saved to {plot_path}")
     plt.close()
 
-# --- Lag Feature Engineering and Correlation Plot ---
-
-def add_lag_features(df: pd.DataFrame, lags: List[int]) -> pd.DataFrame:
-    """
-    Creates lagged features for cases and climate variables using a groupby
-    approach to ensure correct time-series relationships per municipality.
-    """
-    print("\n--- Creating lagged features with groupby() ---")
-    df_lagged = df.copy()
-    
-    climate_cols = [
-        'precipitacao_total_mensal', 
-        'temp_media_mensal', 
-        'vento_vlc_media_mensal'
-    ]
-
-    # Create lag features correctly using groupby and shift()
-    for lag in lags:
-        df_lagged[f'qntd_casos_lag{lag}'] = df_lagged.groupby('cd_municipio')['qntd_casos'].shift(lag)
-        for col in climate_cols:
-             # Using .str.split('_')[0] to get 'precipitacao', 'temp', 'vento'
-             base_name = col.split("_")[0] 
-             df_lagged[f'{base_name}_lag{lag}'] = df_lagged.groupby('cd_municipio')[col].shift(lag)
-
-    return df_lagged
-
-
-def plot_lag_correlation_barplot(df_lagged: pd.DataFrame, models_dir: Path):
-    """
-    Plots a bar chart showing the correlation of key lag features with 'qntd_casos'.
-    Replaces the overly complex lag features heatmap.
-    """
-    
-    target_col = 'qntd_casos'
-    
-    # Identify all lag columns
-    lag_cols_all = [col for col in df_lagged.columns if 'lag' in col]
-    
-    # Combine target and lag columns
-    cols_to_corr = [target_col] + lag_cols_all
-    
-    # Drop NaNs introduced by shift() temporarily for correlation calculation
-    df_corr = df_lagged[cols_to_corr].dropna().copy()
-    
-    if df_corr.empty:
-        print("DataFrame is empty after dropping NaNs for correlation plot. Skipping.")
-        return
-
-    # Calculate correlation of the target variable with all lags
-    # Drop the correlation of 'qntd_casos' with itself (which is 1.0)
-    correlation_series = df_corr.corr(numeric_only=True)[target_col].drop(target_col).sort_values(ascending=False)
-    
-    corr_df = correlation_series.reset_index()
-    corr_df.columns = ['Feature', 'Correlation']
-
-    plt.figure(figsize=(10, 8))
-    sns.barplot(
-        x='Correlation', 
-        y='Feature', 
-        data=corr_df, 
-        palette='vlag' 
-    )
-    
-    plt.title('Correlation of Lag Features with Dengue Cases', fontsize=16)
-    plt.xlabel('Pearson Correlation Coefficient', fontsize=12)
-    plt.ylabel('Lag Feature', fontsize=12)
-    plt.grid(axis='x', linestyle='--', alpha=0.7)
-    
-    # Add correlation labels to the bars
-    for index, row in corr_df.iterrows():
-        # Adjust text position based on correlation value
-        ha = 'left' if row.Correlation >= 0 else 'right'
-        x_pos = row.Correlation + 0.01 if row.Correlation >= 0 else row.Correlation - 0.01
-        plt.text(x_pos, index, f'{row.Correlation:.2f}', color='black', ha=ha, va='center')
-        
-    plt.tight_layout()
-
-    plot_path = models_dir / "lag_correlation_barplot.png"
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    print(f"Plot saved to {plot_path}")
-    plt.close()
-
 # --- Main Execution Block ---
-
 if __name__ == "__main__":
     
     project_root = get_project_root()
@@ -291,18 +208,3 @@ if __name__ == "__main__":
         # New scatter analyses
         plot_climatic_scatter(df, models_dir, 'temp_media_mensal', 'qntd_casos')
         plot_climatic_scatter(df, models_dir, 'precipitacao_total_mensal', 'qntd_casos')
-        
-        # 4. Lag Feature Engineering
-        # Using lags 3, 4, 6 (common for climate/dengue) and 12 (sazonal)
-        lags_to_use = [3, 4, 6, 12] 
-        df_with_lags = add_lag_features(df, lags=lags_to_use)
-        
-        # 5. NEW: Lag Correlation Plot
-        print("\n--- Generating Lag Correlation Bar Plot ---")
-        plot_lag_correlation_barplot(df_with_lags, models_dir)
-
-        # 6. Save the Final DataFrame for Modeling
-        lag_output_path = project_root / "data" / "df_with_lag_features.csv"
-        # Using '\t' separator and latin-1 encoding for consistency when saving/loading
-        df_with_lags.to_csv(lag_output_path, sep='\t', encoding='latin-1', index=False)
-        print(f"\nFinal DataFrame with lag features saved to: {lag_output_path}")
