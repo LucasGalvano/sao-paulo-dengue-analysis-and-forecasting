@@ -1,18 +1,20 @@
-# 🦟 Dengue Cases Forecasting - Data Science Project
+# 🦟 Dengue Cases Forecasting: A Robust Time-Series Approach
 
-This project aims to build a complete end-to-end data science pipeline to forecast dengue cases using historical epidemiological and climate data. It was inspired by the final thesis of a group of students from São Paulo, Brazil, whose dataset served as the foundation for this analysis.
+This project focuses on building a complete, scientifically robust end-to-end data science pipeline to forecast dengue cases using historical epidemiological and climate data.
 
-> 📊 This project was developed as a personal initiative to put into practice the knowledge acquired in the **IBM Professional Data Scientist Certificate** program.
+The project's foundation is the publicly available dataset sourced from the final thesis (TCC) of a group of students in São Paulo, Brazil. The analysis was refactored to prioritize data integrity and real-world predictive validity.
+
+> 📊 This project was developed as a personal initiative to put into practice the knowledge acquired in the **IBM Professional Data Scientist Certificate** program, with a focus on advanced time-series methodologies.
 
 ---
 
-## 📁 Dataset
+## 📁 Dataset & Original Project Context
 
 - **Source:** [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/NN7EOY)
-- **Original Project:** [Students from São Paulo create algorithm to predict dengue cases](https://www.metropoles.com/sao-paulo/estudantes-de-sp-criam-algoritmo-capaz-de-prever-casos-de-dengue)
+- **Original Project News Coverage (TCC):** [Students from São Paulo create algorithm to predict dengue cases](https://www.metropoles.com/sao-paulo/estudantes-de-sp-criam-algoritmo-capaz-de-prever-casos-de-dengue)
 
 The dataset contains time-series data on:
-- Monthly reported dengue cases
+- Monthly reported dengue cases (`qntd_casos`)
 - Climate variables (temperature, precipitation, wind speed)
 
 ---
@@ -31,25 +33,26 @@ aedes_analysis_project/
 
 ---
 
-## 🔍 Methodology
-Our approach followed a standard machine learning workflow, divided into the following key stages:
+---
 
-### 1. Data Cleaning & Wrangling
-- Removed null rows, fixed units, standardized columns
-- Filtered dataset to relevant time period
-- Transformed temperature and precipitation to proper scales
+## 🔍 Methodology: Focus on Integrity
+
+My approach followed a robust time-series machine learning workflow, emphasizing scientific rigor:
+
+### 1. Data Cleaning & **Leakage Prevention**
+- **CRITICAL:** Explicitly identified and removed **9 features** related to symptoms and test results (e.g., `qntd_febre`, `qntd_resultado_ns1`) to eliminate data leakage and ensure the model only uses truly predictive, historically available information.
+- **Robust Imputation:** Implemented time-aware imputation (seasonal median/FFILL/BFILL) to handle missing climate values without introducing future bias.
 
 ### 2. Exploratory Data Analysis (EDA)
-- Identified seasonal trends and correlations
-- Visualized dengue peaks and lagged impact of climate
+- Confirmed strong seasonal trends and the non-contemporaneous relationship between climate and case incidence.
 
 ### 3. Feature Engineering
-- Created **lag features** for dengue cases and climate variables (1, 2, 3, 4, 6 and 12 months)
+- Created essential **Lag Features** (1 to 12 months) for cases, precipitation, temperature, and wind speed, capturing the biological delay of the *Aedes aegypti* mosquito cycle.
+- Engineered monthly and cyclical temporal features (sin/cos encoding).
 
-### 4. Machine Learning
-- **Models**: Random Forest Regressor and XGBoost Regressor
-- **Evaluation**: Mean Squared Error (MSE), Mean Absolute Error (MAE) and R² Score
-- **Hyperparameter tuning**: RandomizedSearchCV with TimeSeriesSplit
+### 4. Machine Learning & Temporal Validation
+- **Validation Strategy:** Used a strict **TimeSeriesSplit** validation, where the model is trained *only* on past data and evaluated *only* on future data, simulating a real-world forecast scenario.
+- **Model:** Employed an **Optimized Ensemble Regressor** (combining XGBoost, Random Forest, and GBM) to maximize prediction stability and accuracy.
 
 ---
 
@@ -61,28 +64,28 @@ This project leverages the following tools and libraries:
 - <img src="https://img.shields.io/badge/Jupyter_Notebook-F37626?style=for-the-badge&logo=jupyter&logoColor=white" alt="Jupyter Notebook">
 - <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas">
 - <img src="https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white" alt="NumPy">
-- <img src="https://img.shields.io/badge/Matplotlib-E34D26?style=for-the-badge&logo=matplotlib&logoColor=white" alt="Matplotlib">
-- <img src="https://img.shields.io/badge/Seaborn-4C766A?style=for-the-badge&logo=seaborn&logoColor=white" alt="Seaborn">
 - <img src="https://img.shields.io/badge/scikit_learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white" alt="Scikit-learn">
 - <img src="https://img.shields.io/badge/XGBoost-1D96D2?style=for-the-badge&logo=xgboost&logoColor=white" alt="XGBoost">
+- <img src="https://img.shields.io/badge/LightGBM-005C98?style=for-the-badge&logo=lightgbm&logoColor=white" alt="LightGBM">
 
 ---
 
-## 📈 Results
+## 📈 Final Results (Optimized Ensemble Model)
 
-| Model | MSE | MAE | R² Score |
-|---|---|---|---|
-| RF Baseline | 4,739,091.81 | 50.70 | 0.38 |
-| RF Optimized | 4,955,366.21 | 55.17 | 0.35 |
-| XGB Baseline | 4,668,164.00 | 63.87 | **0.39** |
-| XGB Optimized | 4,638,695.00 | 59.98 | **0.41** |
+By eliminating data leakage and focusing on lagged, predictive features, the Ensemble Model achieved significantly improved and robust performance on the final test set (20% of the latest data).
 
-_The best R² score in cross-validation for the RF and XGBoost models was 0.83 and 0.80, respectively, indicating the models' potential._
+| Metric | Optimized Ensemble Regressor | Interpretation |
+|---|---|---|
+| **R² Score** | **0.753** | The model explains **75.3%** of the variance in dengue cases, a strong result for a time-series forecast. |
+| **RMSE** | 7.29 | Average magnitude of error in case counts. |
+| **MAE** | 4.20 | Average absolute error in case counts. |
+| **Outbreak F1-Score** | **0.808** | Confirms high accuracy in detecting critical outbreak periods. |
 
-Visual inspection confirms that while all models accurately predict the timing of seasonal outbreaks, they consistently struggle to forecast the magnitude of the extreme outlier event that occurred in 2024.
+**Diagnostic Analysis:**
+The diagnostic plots confirm the model's validity, showing that residuals are randomly distributed (no systematic error) and predictions closely track the actual series.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/LucasGalvano/sao-paulo-dengue-analysis-and-forecasting/main/models/model_comparison_grid.png" alt="Optimized Model's Dengue Forecast" width="600">
+  <img src="./models/ensemble_diagnostic_analysis.jpg" alt="Optimized Ensemble Model Diagnostic Analysis" width="700">
 </div>
 
 ---
@@ -92,7 +95,7 @@ Visual inspection confirms that while all models accurately predict the timing o
 Install dependencies with:
 
 ```bash
-  pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ---
